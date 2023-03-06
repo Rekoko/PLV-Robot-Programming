@@ -1,20 +1,17 @@
 import rclpy  # ROS client library
+import subprocess
+from transforms3d.euler import quat2euler
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-
-from sensor_msgs.msg import LaserScan
-from geometry_msgs.msg import Twist
-
 from enum import Enum, auto
-
+from nav_msgs.msg import Odometry
+from geometry_msgs.msg import Twist
 
 class State(Enum):
     TO_THE_FIRST_WALL = auto()
-    ROTATING_LEFT = auto()
+    ROTATING = auto()
     TO_THE_SECOND_WALL = auto()
     STOP = auto()
-    CHECK_ROTATION = auto()
-
 
 class Tb3(Node):
     def __init__(self):
@@ -25,17 +22,17 @@ class Tb3(Node):
                 'cmd_vel',  # topic name
                 1)          # history depth
 
-        self.scan_sub = self.create_subscription(
-                LaserScan,
-                'scan',
-                self.scan_callback,  # function to run upon message arrival
+        self.odom_sub = self.create_subscription(
+                Odometry,
+                'odom',
+                self.odom_callback,  # function to run upon message arrival
                 qos_profile_sensor_data)  # allows packet loss
 
+        self.st = State.TO_THE_FIRST_WALL
         self.ang_vel_percent = 0
         self.lin_vel_percent = 0
-        self.state = State.TO_THE_FIRST_WALL
-        self.diff = 0
-
+    
+    
     def vel(self, lin_vel_percent, ang_vel_percent=0):
         """ publishes linear and angular velocities in percent
         """
@@ -51,36 +48,38 @@ class Tb3(Node):
         self.ang_vel_percent = ang_vel_percent
         self.lin_vel_percent = lin_vel_percent
 
-    def scan_callback(self, msg):
+    def odom_callback(self, msg):
         """ is run whenever a LaserScan msg is received
         """
-        # print()
-        # print('Distances:')
-        # print('⬆️ :', msg.ranges[0])
-        # print('⬇️ :', msg.ranges[180])
-        # print('⬅️ :', msg.ranges[90])
-        print('➡️ :', msg.ranges[-90])
-        if self.state == State.TO_THE_FIRST_WALL:
-            if msg.ranges[0] > 0.25:
-                self.vel(20)
-            else:
-                self.state = State.ROTATING_LEFT
-        if self.state == State.ROTATING_LEFT:
-            if msg.ranges[-90] > 0.179:
-                self.vel(0, ang_vel_percent=10)
-            else:
-                self.state = State.TO_THE_SECOND_WALL
-        if self.state == State.CHECK_ROTATION:
-            pass    
+        position = msg.pose.pose.position
+        orientation = msg.pose.pose.orientation
+        angles = quat2euler([orientation.x, orientation.y, orientation.z, orientation.w])
+        x = position.x
+        y = position.y
+        
+        print(position)
+        #print(angles)
+        if self.st == State.TO_THE_FIRST_WALL:
+            self.vel(20,0)
+            if y > 0.8:
+                self.st = State.ROTATING
+        elif self.st == State.ROTATING:
+            self.vel(0,5) 
+            if -3.1 > angles[0]:
+                self.st = State.TO_THE_SECOND_WALL
+        elif self.st == State.TO_THE_SECOND_WALL:
+            self.vel(20,0)
+            if x < 0.2:
+                self.st = State.STOP
 
-        if self.state == State.TO_THE_SECOND_WALL:
-            if msg.ranges[0] > 0.22:
-                self.vel(20)
-            else:
-                self.state = State.STOP
-        if self.state == State.STOP:
-            self.vel(0)
-        self.diff = msg 
+        elif self.st == State.STOP:
+            self.vel(0,0)        
+        
+
+        
+
+  
+        
 
 def main(args=None):
     rclpy.init(args=args)
