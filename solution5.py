@@ -5,7 +5,7 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
-
+import numpy
 
 from transforms3d import euler
 from enum import Enum, auto
@@ -49,6 +49,7 @@ class Tb3(Node):
         self.msg_odom = None
         self.open_paths = []
         self.path_history = []
+        self.counter = 0
 
     # Checks if there is a path available along the x-/y-Axes
     def getPaths(self, msg):
@@ -108,17 +109,48 @@ class Tb3(Node):
         
 
     def odom_callback(self, msg):
-        pos = msg.pose.pose.position
-        ori = msg.pose.pose.orientation
-        # print(msg.pose.pose.position)
-        # print(msg.pose.pose.orientation)
-        # print(ori)
-        eul_z,_,_ = euler.quat2euler((ori.w, ori.x, ori.y, ori.z), "szyx")
-        # print(eul_z)
-        self.msg_odom = [pos, ori]
+        position = msg.pose.pose.position
+        orientation = msg.pose.pose.orientation
+        angles = euler.quat2euler([orientation.x, orientation.y, orientation.z, orientation.w])
+    
+        #print("Aktuelle Ausrichtung: " + angles)
+        #print("Aktuelle Position: " + position)
+
+        self.msg_odom = [position, angles]
+        if self.counter == True:
+            self.driveToCords((0.5, 1.5))
+            self.counter = False
         pass
 
-    def driveToCords(self, x, y):
+
+    def roundFloat(self, float_number):
+        ntr = float_number
+        i, d = divmod(ntr, 1)
+        d = round(d*10) 
+        ntr = i + (d/10)
+        return ntr
+    
+    #Turning to direction the bot will drive too
+    #Setting velocity to 20 while on path to given Cords    
+    def driveToCords(self, coords):
+        x,y = coords
+
+        position = self.msg_odom[0]
+        angles = self.msg_odom[1]
+
+        origin_x = position.x
+        origin_y = position.y
+
+        goal_xy = numpy.array((x, y))
+        origin_xy = numpy.array((origin_x, origin_y))
+        real_xy = numpy.array((self.roundFloat(origin_x), self.roundFloat(origin_y)))
+    
+        dist_OG = numpy.linalg.norm(origin_xy-goal_xy)
+        dist_RG = numpy.linalg.norm(real_xy-goal_xy)
+        dist_OR = numpy.linalg.norm(origin_xy-real_xy)
+
+        print(dist_OG, dist_OR, dist_RG)
+    
         return None
     
     def speedRegulation(self):
