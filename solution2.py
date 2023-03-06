@@ -97,3 +97,8 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+<<<<<<< HEAD:solution2.py
+=======
+    
+    #test
+>>>>>>> 2f587cf0eb52c9db80af0e2358ed388595e1fa7a:solution_2.py
