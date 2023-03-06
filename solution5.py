@@ -74,10 +74,27 @@ class Tb3(Node):
                 self.open_paths.append(current_history)
                 while True:
                     last_dir = self.open_paths.pop()
+                    x, y = self.goalCords
                     if last_dir[0]:
-                        x, y = self.goalCords
                         self.goalCords = (x, y + 1)
                         self.driveToCords(self.goalCords)
+                        last_dir[0] = False
+                        break
+                    elif last_dir[1]:
+                        self.goalCords = (x + 1, y)
+                        self.driveToCords(self.goalCords)
+                        last_dir[1] = False
+                    elif last_dir[2]:
+                        self.goalCords = (x, y - 1)
+                        self.driveToCords(self.goalCords)
+                        last_dir[2] = False
+                    elif last_dir[3]:
+                        self.goalCords = (x - 1, y)
+                        self.driveToCords(self.goalCords)
+                        last_dir[3] = False
+                    else:
+                        pass
+                    self.open_paths.append(last_dir)
         return None
 
 
