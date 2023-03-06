@@ -133,23 +133,23 @@ class Tb3(Node):
     #Turning to direction the bot will drive too
     #Setting velocity to 20 while on path to given Cords    
     def driveToCords(self, coords):
-        x,y = coords
-
+        
         position = self.msg_odom[0]
         angles = self.msg_odom[1]
 
-        origin_x = position.x
-        origin_y = position.y
-
+        x,y = coords
+        origin_x, origin_y = position.x, position.y
         goal_xy = numpy.array((x, y))
         origin_xy = numpy.array((origin_x, origin_y))
-        real_xy = numpy.array((self.roundFloat(origin_x), self.roundFloat(origin_y)))
-    
-        dist_OG = numpy.linalg.norm(origin_xy-goal_xy)
-        dist_RG = numpy.linalg.norm(real_xy-goal_xy)
-        dist_OR = numpy.linalg.norm(origin_xy-real_xy)
 
-        print(dist_OG, dist_OR, dist_RG)
+
+        vektor_OG = [origin_x - x, origin_y - y]
+        dist_OG = numpy.linalg.norm(origin_xy-goal_xy)
+
+        angle_adj = vektor_OG[1] / dist_OG 
+
+    
+        print(dist_OG, vektor_OG, angle_adj)
     
         return None
     
