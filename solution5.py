@@ -45,6 +45,40 @@ class Tb3(Node):
         self.lin_vel_percent = 0
         self.state = State.ROTATING_LEFT
         self.diff = 0
+        self.goalCords = (0.5, 0.5)
+        self.msg_odom = None
+        self.open_paths = []
+        self.path_history = []
+
+    # Checks if there is a path available along the x-/y-Axes
+    def getPaths(self, msg):
+        results = [False for i in range(4)]
+        if msg.ranges[0] > 1: # up path
+            results[0] = True
+        if msg.ranges[-90] > 1: # right path
+            results[1] = True
+        if msg.ranges[180] > 1: # down path
+            results[2] = True
+        if msg.ranges[90] > 1: # left path
+            results[3] = True
+        return results
+
+    # Decides where to go next while saving the path where it went and where it can go
+    def calculatePath(self, msg):
+        if self.msg_odom:
+            if (self.goalCords[0] + 0.1) > self.msg_odom[0].x > (self.goalCords[0] - 0.1) and\
+            (self.goalCords[1] + 0.1) > self.msg_odom[0].y > (self.goalCords[1] - 0.1):
+                current_history = self.getPaths(msg)
+                print(current_history)
+                self.open_paths.append(current_history)
+                while True:
+                    last_dir = self.open_paths.pop()
+                    if last_dir[0]:
+                        x, y = self.goalCords
+                        self.goalCords = (x, y + 1)
+                        self.driveToCords(self.goalCords)
+        return None
+
 
     def vel(self, lin_vel_percent, ang_vel_percent=0):
         """ publishes linear and angular velocities in percent
@@ -70,27 +104,8 @@ class Tb3(Node):
         # print('⬇️ :', msg.ranges[180])
         # print('⬅️ :', msg.ranges[90])
         #print('➡️ :', msg.ranges[-90])
-        if self.state == State.TO_THE_FIRST_WALL:
-            if msg.ranges[0] > 0.25:
-                self.vel(20)
-            else:
-                self.state = State.ROTATING_LEFT
-        if self.state == State.ROTATING_LEFT:
-            if msg.ranges[-90] > 0.179:
-                self.vel(0, ang_vel_percent=10)
-            else:
-                self.state = State.TO_THE_SECOND_WALL
-        if self.state == State.CHECK_ROTATION:
-            pass    
-
-        if self.state == State.TO_THE_SECOND_WALL:
-            if msg.ranges[0] > 0.22:
-                self.vel(20)
-            else:
-                self.state = State.STOP
-        if self.state == State.STOP:
-            self.vel(0)
-        self.diff = msg 
+        self.calculatePath(msg)
+        
 
     def odom_callback(self, msg):
         pos = msg.pose.pose.position
@@ -99,7 +114,8 @@ class Tb3(Node):
         # print(msg.pose.pose.orientation)
         # print(ori)
         eul_z,_,_ = euler.quat2euler((ori.w, ori.x, ori.y, ori.z), "szyx")
-        print(eul_z)
+        # print(eul_z)
+        self.msg_odom = [pos, ori]
         pass
 
     def driveToCords(self, x, y):
@@ -110,9 +126,7 @@ class Tb3(Node):
     
     def checkGoald(self):
         return None
-
-    def calculatePath(self):
-        return None
+    
 
 def main(args=None):
     rclpy.init(args=args)
