@@ -6,18 +6,17 @@ from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 import numpy
-
+import math
 from transforms3d import euler
 from enum import Enum, auto
 
 import networkx as nx
 
 class State(Enum):
-    TO_THE_FIRST_WALL = auto()
-    ROTATING_LEFT = auto()
-    TO_THE_SECOND_WALL = auto()
+    DRIVING = auto()
+    ROTATING = auto()
     STOP = auto()
-    CHECK_ROTATION = auto()
+
 
 
 # If we have seen a Crossway it will become a Crossway object, otherwise it will be None
@@ -51,7 +50,7 @@ class Tb3(Node):
 
         self.ang_vel_percent = 0
         self.lin_vel_percent = 0
-        self.state = State.ROTATING_LEFT
+        self.state = State.STOP
         self.diff = 0
         self.goalCords = (0.5, 0.5)
         self.msg_odom = None
@@ -60,7 +59,10 @@ class Tb3(Node):
         self.visited_nodes = [] # Where have we been
         self.node_number = 0 # Naming nodes different names
         self.current_node = 0 # Current position
-        self.counter = 0
+
+
+        self.angle = 0
+        self.angle_adj = 0
 
     # Checks if there is a path available along the x-/y-Axes
     def getPaths(self, msg):
@@ -174,52 +176,71 @@ class Tb3(Node):
         # print('⬇️ :', msg.ranges[180])
         # print('⬅️ :', msg.ranges[90])
         #print('➡️ :', msg.ranges[-90])
-        self.calculatePath(msg)
+        #self.calculatePath(msg)
         
 
     def odom_callback(self, msg):
         position = msg.pose.pose.position
         orientation = msg.pose.pose.orientation
-        angles = euler.quat2euler([orientation.x, orientation.y, orientation.z, orientation.w])
-    
-        #print("Aktuelle Ausrichtung: " + angles)
-        #print("Aktuelle Position: " + position)
+        euler_angles = euler.quat2euler([orientation.w, orientation.x, orientation.y, orientation.z])
+        angles = [euler_angles[0] * (180/math.pi), euler_angles[1] * (180/math.pi), euler_angles[2] * (180/math.pi)]
+
+        # print("Aktuelle Ausrichtung: ", angles)
+        # print("Aktuelle Position: ", position)
 
         self.msg_odom = [position, angles]
+        ur_angle = angles[2]
+        if ur_angle < 0:
+            ur_angle = ur_angle + 360
+
+        # print(ur_angle)
+        # print(self.angle)
         if self.counter == True:
-            self.driveToCords((0.5, 1.5))
+            self.setRotation((1.5, 0.5, "RIGHT"))
             self.counter = False
+            self.state = State.ROTATING
+
+        if self.state == State.ROTATING:
+            self.vel(0,-5)
+            if ur_angle+self.angle_adj+0.1 > self.angle > ur_angle-self.angle_adj-0.1:
+                self.state = State.DRIVING
+        elif self.state == State.DRIVING:
+            self.vel(20,0)
+        elif self.state == State.STOP:
+            self.vel(0,0)
+
         pass
 
-
-    def roundFloat(self, float_number):
-        ntr = float_number
-        i, d = divmod(ntr, 1)
-        d = round(d*10)
-        ntr = i + (d/10)
-        return ntr
     
     #Turning to direction the bot will drive too
     #Setting velocity to 20 while on path to given Cords    
-    def driveToCords(self, coords):
-        x,y = coords
+    def setRotation(self, coords):
+        x,y,direction = coords
+        self.rotate = True    
+        if self.rotate == True:
+            position = self.msg_odom[0]
 
-        position = self.msg_odom[0]
-        angles = self.msg_odom[1]
+            origin_x, origin_y = position.x, position.y
+            goal_xy = numpy.array((x, y))
+            origin_xy = numpy.array((origin_x, origin_y))
 
-        origin_x = position.x
-        origin_y = position.y
 
-        goal_xy = numpy.array((x, y))
-        origin_xy = numpy.array((origin_x, origin_y))
-        real_xy = numpy.array((self.roundFloat(origin_x), self.roundFloat(origin_y)))
-    
-        dist_OG = numpy.linalg.norm(origin_xy-goal_xy)
-        dist_RG = numpy.linalg.norm(real_xy-goal_xy)
-        dist_OR = numpy.linalg.norm(origin_xy-real_xy)
+            vektor_OG = [x- origin_x, y - origin_y]
+            dist_OG = numpy.linalg.norm(origin_xy-goal_xy)
 
-        print(dist_OG, dist_OR, dist_RG)
-    
+
+            self.angle_adj = numpy.arccos(vektor_OG[0] / dist_OG)
+
+            if direction == "UP":
+                self.angle = 90 + self.angle_adj
+            if direction == "DOWN":
+                self.angle = 270 - self.angle_adj
+            if direction == "LEFT":
+                self.angle = 180 + self.angle_adj
+            if direction == "RIGHT":  
+                self.angle = 360 + self.angle_adj
+            self.rotate = False
+
         return None
     
     def speedRegulation(self):
