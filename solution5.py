@@ -10,6 +10,7 @@ import numpy
 from transforms3d import euler
 from enum import Enum, auto
 
+import networkx as nx
 
 class State(Enum):
     TO_THE_FIRST_WALL = auto()
@@ -18,6 +19,13 @@ class State(Enum):
     STOP = auto()
     CHECK_ROTATION = auto()
 
+
+# If we have seen a Crossway it will become a Crossway object, otherwise it will be None
+# dict or do we need connections to "up" "down" "left" "right"? - None since these are the edges
+# Do we need any object at all? no? yes? We dont know what direction the edge goes
+# We can do weighted edges and save the change of the coordinates in the edge to then add to the goal coordinate upon goin onto that edge
+# We never need another class 
+# Weights as a tupel for the goal  change? 
 
 class Tb3(Node):
     def __init__(self):
@@ -47,54 +55,98 @@ class Tb3(Node):
         self.diff = 0
         self.goalCords = (0.5, 0.5)
         self.msg_odom = None
-        self.open_paths = []
-        self.path_history = []
+        self.graph = nx.Graph()
+        self.path_history = [] # What direction is back?
+        self.visited_nodes = [] # Where have we been
+        self.node_number = 0 # Naming nodes different names
+        self.current_node = 0 # Current position
         self.counter = 0
 
     # Checks if there is a path available along the x-/y-Axes
     def getPaths(self, msg):
-        results = [False for i in range(4)]
+        results = []
         if msg.ranges[0] > 1: # up path
-            results[0] = True
+            results.append("up")
         if msg.ranges[-90] > 1: # right path
-            results[1] = True
+            results.append("right")
         if msg.ranges[180] > 1: # down path
-            results[2] = True
+            results.append("down")
         if msg.ranges[90] > 1: # left path
-            results[3] = True
+            results.append("left")
         return results
+    
+    # Sets a new goal based on the given direction
+    def setGoal(self, dir):
+        x, y = self.goalCords
+        if dir == "up":
+            self.goalCords = x, y + 1
+        if dir == "right":
+            self.goalCords = x + 1, y 
+        if dir =="down":
+            self.goalCords = x, y - 1
+        if dir == "left":
+            self.goalCords = x - 1  , y
+
+    # Problem right now:
+    # It cant realize when to go back since it doesnt really understand when 
+    # a direction is undiscovered or when it has already been visited # Still a problem? We can make a list of visited nodes? easy
+    # Linked List or List
+    # We could just add a variable for the path that we came from and another for possible open paths
+    # Linked List seems better and easier
+
 
     # Decides where to go next while saving the path where it went and where it can go
     def calculatePath(self, msg):
         if self.msg_odom:
             if (self.goalCords[0] + 0.1) > self.msg_odom[0].x > (self.goalCords[0] - 0.1) and\
             (self.goalCords[1] + 0.1) > self.msg_odom[0].y > (self.goalCords[1] - 0.1):
-                current_history = self.getPaths(msg)
-                print(current_history)
-                self.open_paths.append(current_history)
-                while True:
-                    last_dir = self.open_paths.pop()
-                    x, y = self.goalCords
-                    if last_dir[0]:
-                        self.goalCords = (x, y + 1)
-                        self.driveToCords(self.goalCords)
-                        last_dir[0] = False
+                print("----------------------------------------\nNEW ITERATION\n----------------------------------------")
+                if self.current_node not in self.visited_nodes: # if the node we are at is a new node
+                    
+                    # Add current node to the Graph
+
+                    if self.graph.is_empty():
+                        self.graph.add_node(self.node_number) # We kinda only want to do this in the beginning
+                        self.node_number += 1
+                    
+                    # Add node to the list of seen nodes
+                    self.visited_nodes.append(self.current_node) 
+
+                    # When to set the path history and the visited nodes: 
+                    # Visited Nodes: upon reaching a new node/ Only to be called when reaching a new node which is correct
+                    # Path history: upon leaving a node
+                    # self.path_history.append(self.current_node)
+                    # self.visited_nodes.append(self.current_node)
+
+                    # For every direction that the turtle sees as open;
+                    # we make a new node and an edge to that node from the current node
+                    for direction in self.getPaths(msg):
+                        self.graph.add_node(self.node_number)
+                        self.graph.add_edge(self.node_number, self.current_node, weight = direction)
+                        self.node_number += 1
+
+
+                    # How do we find back? Make Path History
+                    # How do we know where to still go? Check every path 
+                    # Look for a new node at the current position
+                    #   If Yes: Go to that node
+                    #   If No: Go back to the node where we came from (Node History) and repeat step
+        
+        
+                for _, dest, dir in list(self.graph.edges(self.current_node, data=True)):
+                    if dest not in self.visited_nodes:
+                        self.path_history = self.current_node
+                        self.current_node = dest
+                        self.setGoal(dir)
+                        
+
                         break
-                    elif last_dir[1]:
-                        self.goalCords = (x + 1, y)
-                        self.driveToCords(self.goalCords)
-                        last_dir[1] = False
-                    elif last_dir[2]:
-                        self.goalCords = (x, y - 1)
-                        self.driveToCords(self.goalCords)
-                        last_dir[2] = False
-                    elif last_dir[3]:
-                        self.goalCords = (x - 1, y)
-                        self.driveToCords(self.goalCords)
-                        last_dir[3] = False
-                    else:
-                        pass
-                    self.open_paths.append(last_dir)
+
+                # Go backwards and set current node + destination to that node
+                
+                self.current_node = self.path_history.pop()                    
+
+        
         return None
 
 
@@ -143,7 +195,7 @@ class Tb3(Node):
     def roundFloat(self, float_number):
         ntr = float_number
         i, d = divmod(ntr, 1)
-        d = round(d*10) 
+        d = round(d*10)
         ntr = i + (d/10)
         return ntr
     
