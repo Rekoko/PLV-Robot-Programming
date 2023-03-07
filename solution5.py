@@ -2,6 +2,8 @@ import rclpy  # ROS client library
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
+from sensor_msgs.msg import CameraInfo
+from sensor_msgs.msg import Image
 from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
@@ -34,13 +36,21 @@ class Tb3(Node):
                 Twist,      # message type
                 'cmd_vel',  # topic name
                 1)          # history depth
-
+        self.scan_sub = self.create_subscription(
+                CameraInfo,
+                'camera/camera_info',
+                self.camera_info_callback,
+                qos_profile_sensor_data)
+        self.scan_sub = self.create_subscription(
+                Image,
+                'camera/image_raw',
+                self.camera_image_callback,
+                qos_profile_sensor_data)
         self.scan_sub = self.create_subscription(
                 LaserScan,
                 'scan',
                 self.scan_callback,  # function to run upon message arrival
                 qos_profile_sensor_data)  # allows packet loss
-        
         self.scan_sub = self.create_subscription(
                 Odometry,
                 'odom',
@@ -59,7 +69,7 @@ class Tb3(Node):
         self.visited_nodes = [] # Where have we been
         self.node_number = 0 # Naming nodes different names
         self.current_node = 0 # Current position
-
+        self.counter = True
 
         self.angle = 0
         self.angle_adj = 0
@@ -167,6 +177,15 @@ class Tb3(Node):
         self.ang_vel_percent = ang_vel_percent
         self.lin_vel_percent = lin_vel_percent
 
+    def camera_image_callback(self, msg):
+        print(msg.encoding)
+    
+
+    def camera_info_callback(self, msg):
+    
+        return None
+    
+
     def scan_callback(self, msg):
         """ is run whenever a LaserScan msg is received
         """
@@ -201,11 +220,16 @@ class Tb3(Node):
             self.state = State.ROTATING
 
         if self.state == State.ROTATING:
-            self.vel(0,-5)
-            if ur_angle+self.angle_adj+0.1 > self.angle > ur_angle-self.angle_adj-0.1:
+            if  -1 < (ur_angle+self.angle_adj - self.angle) < 1:
                 self.state = State.DRIVING
+
+            if abs(self.angle - (ur_angle+self.angel_adj)) > 181:
+                self.vel(0, -10)
+            else:
+                self.vel(0, 10)
+                
         elif self.state == State.DRIVING:
-            self.vel(20,0)
+            self.vel(40,0)
         elif self.state == State.STOP:
             self.vel(0,0)
 
