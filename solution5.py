@@ -59,35 +59,65 @@ class Tb3(Node):
         self.visited_nodes = [] # Where have we been
         self.node_number = 0 # Naming nodes different names
         self.current_node = 0 # Current position
+        self.direction = "UP"
 
 
         self.angle = 0
         self.angle_adj = 0
 
     # Checks if there is a path available along the x-/y-Axes
-    def getPaths(self, msg):
+    def getPaths(self, msg, origin):
         results = []
         if msg.ranges[0] > 1: # up path
-            results.append("up")
+            results.append("UP")
         if msg.ranges[-90] > 1: # right path
-            results.append("right")
+            results.append("RIGHT")
         if msg.ranges[180] > 1: # down path
-            results.append("down")
+            results.append("DOWN")
         if msg.ranges[90] > 1: # left path
-            results.append("left")
+            results.append("LEFT")
+        if origin in results:
+            results.remove(origin)
+
+        if self.direction == "LEFT":
+            for i in range(3):
+                results = self.shiftOnce(results)
+        if self.direction == "DOWN":
+            for i in range(2):
+                results = self.shiftOnce(results)
+        if self.direction == "RIGHT":
+            for i in range(1):
+                results = self.shiftOnce(results)
         return results
     
+    def shiftOnce(self, dir_list):
+        single_shift_dic = {"UP": "RIGHT", "RIGHT": "DOWN", "DOWN": "LEFT", "LEFT": "UP"}
+        new_list = []
+        for i in dir_list:
+            new_list.append(single_shift_dic[i])
+        return new_list
+
     # Sets a new goal based on the given direction
     def setGoal(self, dir):
         x, y = self.goalCords
-        if dir == "up":
+        if dir == "UP":
             self.goalCords = x, y + 1
-        if dir == "right":
+        if dir == "RIGHT":
             self.goalCords = x + 1, y 
-        if dir =="down":
+        if dir =="DOWN":
             self.goalCords = x, y - 1
-        if dir == "left":
+        if dir == "LEFT":
             self.goalCords = x - 1  , y
+
+    def reversePath(self, dir):
+        if dir == "UP":
+            return "DOWN"
+        if dir == "DOWN":
+            return "UP"
+        if dir == "RIGHT":
+            return "LEFT"
+        if dir == "LEFT":
+            return "RIGHT"
 
     # Problem right now:
     # It cant realize when to go back since it doesnt really understand when 
@@ -107,10 +137,20 @@ class Tb3(Node):
                     
                     # Add current node to the Graph
 
-                    if self.graph.is_empty():
+                    if nx.is_empty(self.graph):
                         self.graph.add_node(self.node_number) # We kinda only want to do this in the beginning
                         self.node_number += 1
-                    
+                        print("added first node")
+                        origin = None
+                    else:
+                        # print("________DEBUG______________")
+                        # print(list(self.graph.edges))
+                        # print(list(self.graph.nodes))
+                        # print(self.visited_nodes)
+                        # print(self.current_node)
+                        # print(self.visited_nodes[-1])
+                        # print("________DEBUG--END______________")
+                        origin = self.reversePath(self.graph[self.path_history[-1]][self.current_node]["weight"])
                     # Add node to the list of seen nodes
                     self.visited_nodes.append(self.current_node) 
 
@@ -122,14 +162,19 @@ class Tb3(Node):
 
                     # For every direction that the turtle sees as open;
                     # we make a new node and an edge to that node from the current node
-                    for direction in self.getPaths(msg):
+                    if msg == None:
+                        print("msg is none")
+                    if origin == None:
+                        print("origin is none")
+                    for direction in self.getPaths(msg, origin):
                         self.graph.add_node(self.node_number)
                         self.graph.add_edge(self.node_number, self.current_node, weight = direction)
                         self.node_number += 1
 
 
                     # How do we find back? Make Path History
-                    # How do we know where to still go? Check every path 
+                    # How do we know where to still go? Check every path -- 
+                    # We only have one direction in the edge since we assume that there are no loops in the maze
                     # Look for a new node at the current position
                     #   If Yes: Go to that node
                     #   If No: Go back to the node where we came from (Node History) and repeat step
@@ -137,16 +182,30 @@ class Tb3(Node):
         
                 for _, dest, dir in list(self.graph.edges(self.current_node, data=True)):
                     if dest not in self.visited_nodes:
-                        self.path_history = self.current_node
+                        self.path_history.append(self.current_node)
                         self.current_node = dest
+                        dir = dir["weight"]
+                        print(self.goalCords)
                         self.setGoal(dir)
-                        
-
-                        break
+                        x, y = self.goalCords
+                        self.setRotation((x,y,dir))
+                        print(dir)
+                        print(list(self.graph.nodes))
+                        print(list(self.graph.edges))
+                        print(self.goalCords)
+                        return
 
                 # Go backwards and set current node + destination to that node
+                goal_node = self.path_history.pop()
+                direc = self.reversePath(self.graph[goal_node][self.current_node]["weight"])
+                self.setGoal(direc)
+                x, y = self.goalCords
+                self.current_node = goal_node
+                self.setRotation((x, y, direc))
+                if direc == "DOWN":
+                    print("DIREC: DOWN")
+                print("going back where we came from")
                 
-                self.current_node = self.path_history.pop()                    
 
         
         return None
@@ -176,7 +235,7 @@ class Tb3(Node):
         # print('⬇️ :', msg.ranges[180])
         # print('⬅️ :', msg.ranges[90])
         #print('➡️ :', msg.ranges[-90])
-        #self.calculatePath(msg)
+        self.calculatePath(msg)
         
 
     def odom_callback(self, msg):
@@ -195,17 +254,17 @@ class Tb3(Node):
 
         # print(ur_angle)
         # print(self.angle)
-        if self.counter == True:
-            self.setRotation((1.5, 0.5, "RIGHT"))
-            self.counter = False
-            self.state = State.ROTATING
+        # if self.counter == True:
+        #     self.setRotation((1.5, 0.5, "RIGHT"))
+        #     self.counter = False
+        #     self.state = State.ROTATING
 
         if self.state == State.ROTATING:
-            self.vel(0,-5)
-            if ur_angle+self.angle_adj+0.1 > self.angle > ur_angle-self.angle_adj-0.1:
+            self.vel(0,-20)
+            if ur_angle+self.angle_adj+0.5 > self.angle > ur_angle-self.angle_adj-0.5:
                 self.state = State.DRIVING
         elif self.state == State.DRIVING:
-            self.vel(20,0)
+            self.vel(40,0)
         elif self.state == State.STOP:
             self.vel(0,0)
 
@@ -215,7 +274,9 @@ class Tb3(Node):
     #Turning to direction the bot will drive too
     #Setting velocity to 20 while on path to given Cords    
     def setRotation(self, coords):
+        self.state = State.ROTATING
         x,y,direction = coords
+        self.direction = direction
         self.rotate = True    
         if self.rotate == True:
             position = self.msg_odom[0]

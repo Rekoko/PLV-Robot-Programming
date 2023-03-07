@@ -53,7 +53,7 @@ class Tb3(Node):
         """
         position = msg.pose.pose.position
         orientation = msg.pose.pose.orientation
-        angles = quat2euler([orientation.x, orientation.y, orientation.z, orientation.w])
+        angles = quat2euler([orientation.w, orientation.x, orientation.y, orientation.z])
         x = position.x
         y = position.y
         
