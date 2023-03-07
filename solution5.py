@@ -69,12 +69,9 @@ class Tb3(Node):
         self.visited_nodes = [] # Where have we been
         self.node_number = 0 # Naming nodes different names
         self.current_node = 0 # Current position
-<<<<<<< HEAD
         self.direction = "UP"
 
-=======
         self.counter = True
->>>>>>> 84075cdeb9bf5f5b9486c0ac033d04a421d0f5d7
 
         self.angle = 0
         self.angle_adj = 0
@@ -90,8 +87,6 @@ class Tb3(Node):
             results.append("DOWN")
         if msg.ranges[90] > 1: # left path
             results.append("LEFT")
-        if origin in results:
-            results.remove(origin)
 
         if self.direction == "LEFT":
             for i in range(3):
@@ -102,6 +97,9 @@ class Tb3(Node):
         if self.direction == "RIGHT":
             for i in range(1):
                 results = self.shiftOnce(results)
+
+        if origin in results:
+            results.remove(origin)
         return results
     
     def shiftOnce(self, dir_list):
@@ -218,7 +216,7 @@ class Tb3(Node):
                 self.setRotation((x, y, direc))
                 if direc == "DOWN":
                     print("DIREC: DOWN")
-                print("going back where we came from")
+                print(f"going back where we came from with:\nx: %s\ny: %s\ndirec: %s"%(x, y, direc))
                 
 
         
@@ -241,8 +239,8 @@ class Tb3(Node):
         self.lin_vel_percent = lin_vel_percent
 
     def camera_image_callback(self, msg):
-        print(msg.encoding)
-    
+        # print(msg.encoding)
+        return  
 
     def camera_info_callback(self, msg):
     
@@ -283,18 +281,15 @@ class Tb3(Node):
         #     self.state = State.ROTATING
 
         if self.state == State.ROTATING:
-<<<<<<< HEAD
-            self.vel(0,-20)
-            if ur_angle+self.angle_adj+0.5 > self.angle > ur_angle-self.angle_adj-0.5:
-=======
+
+
             if  -1 < (ur_angle+self.angle_adj - self.angle) < 1:
->>>>>>> 84075cdeb9bf5f5b9486c0ac033d04a421d0f5d7
                 self.state = State.DRIVING
 
-            if abs(self.angle - (ur_angle+self.angel_adj)) > 181:
-                self.vel(0, -10)
-            else:
-                self.vel(0, 10)
+            # if abs(self.angle - (ur_angle+self.angel_adj)) > 181:
+            #     self.vel(0, -10)
+            # else:
+                self.vel(0, 20)
                 
         elif self.state == State.DRIVING:
             self.vel(40,0)
