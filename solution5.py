@@ -102,6 +102,7 @@ class Tb3(Node):
             results.remove(origin)
         return results
     
+    
     def shiftOnce(self, dir_list):
         single_shift_dic = {"UP": "RIGHT", "RIGHT": "DOWN", "DOWN": "LEFT", "LEFT": "UP"}
         new_list = []
@@ -140,7 +141,8 @@ class Tb3(Node):
 
 
     # Decides where to go next while saving the path where it went and where it can go
-    def calculatePath(self, msg):
+    # !!!! UNFINISHED KEPT IN CASE IT FINISHES !!!!! 
+    def calculatePathGraph(self, msg):
         if self.msg_odom:
             if (self.goalCords[0] + 0.1) > self.msg_odom[0].x > (self.goalCords[0] - 0.1) and\
             (self.goalCords[1] + 0.1) > self.msg_odom[0].y > (self.goalCords[1] - 0.1):
@@ -177,7 +179,7 @@ class Tb3(Node):
                     if msg == None:
                         print("msg is none")
                     if origin == None:
-                        print("origin is none")
+                           print("origin is none")
                     for direction in self.getPaths(msg, origin):
                         self.graph.add_node(self.node_number)
                         self.graph.add_edge(self.node_number, self.current_node, weight = direction)
@@ -191,7 +193,8 @@ class Tb3(Node):
                     #   If Yes: Go to that node
                     #   If No: Go back to the node where we came from (Node History) and repeat step
         
-        
+                # For all connections we have to the current node, 
+                # Probably have to filter this one a little bit more since the destination will not always be at the second pos
                 for _, dest, dir in list(self.graph.edges(self.current_node, data=True)):
                     if dest not in self.visited_nodes:
                         self.path_history.append(self.current_node)
@@ -217,10 +220,11 @@ class Tb3(Node):
                 if direc == "DOWN":
                     print("DIREC: DOWN")
                 print(f"going back where we came from with:\nx: %s\ny: %s\ndirec: %s"%(x, y, direc))
-                
 
-        
         return None
+    
+    def calculatePathMatrix(self, msg):
+        return
 
 
     def vel(self, lin_vel_percent, ang_vel_percent=0):
@@ -256,7 +260,8 @@ class Tb3(Node):
         # print('⬇️ :', msg.ranges[180])
         # print('⬅️ :', msg.ranges[90])
         #print('➡️ :', msg.ranges[-90])
-        self.calculatePath(msg)
+        # self.calculatePathGraph(msg)
+        self.calculatePathMatrix(msg)
         
 
     def odom_callback(self, msg):
@@ -289,7 +294,9 @@ class Tb3(Node):
             # if abs(self.angle - (ur_angle+self.angel_adj)) > 181:
             #     self.vel(0, -10)
             # else:
-                self.vel(0, 20)
+            self.vel(0, 10)
+            if ur_angle+self.angle_adj+0.1 > self.angle > ur_angle-self.angle_adj-0.1:
+                self.state = State.DRIVING
                 
         elif self.state == State.DRIVING:
             self.vel(40,0)
