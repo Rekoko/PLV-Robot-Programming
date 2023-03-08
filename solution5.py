@@ -79,7 +79,7 @@ class Tb3(Node):
         self.counter = True
 
         self.angle = 0
-        self.angle_adj = 0
+        self.angle_adjustment = 0
 
     # Checks if there is a path available along the x-/y-Axes
     def getPaths(self, msg, origin):
@@ -245,9 +245,9 @@ class Tb3(Node):
         return x, y
     
     def debug_prints(self):
-        print(f"DIRECTION: %s"%self.direction)
-        print(f"GOAL: %s"%self.current_cords)
-        print(f"PATH TO THE BEGINNING: %s"%self.path_history)
+        print(f"DIRECTION: %s" % self.direction)
+        print(f"GOAL: x: %s y: %s" % self.current_cords)
+        print(f"PATH TO THE BEGINNING: %s" % self.path_history)
 
     def calculatePathMatrix(self, msg):
         # If a message exists
@@ -350,9 +350,9 @@ class Tb3(Node):
         # print("Aktuelle Position: ", position)
 
         self.msg_odom = [position, angles]
-        ur_angle = angles[2]
-        if ur_angle < 0:
-            ur_angle = ur_angle + 360
+        current_angle = angles[2]
+        if current_angle < 0:
+            current_angle = current_angle + 360
 
         # print(ur_angle)
         # print(self.angle)
@@ -363,14 +363,14 @@ class Tb3(Node):
 
         if self.state == State.ROTATING:
 
-            if -1 < (ur_angle+self.angle_adj - self.angle) < 1:
+            if -2 < (current_angle+self.angle_adjustment - self.angle) < 1:
                 self.state = State.DRIVING
 
             # if abs(self.angle - (ur_angle+self.angel_adj)) > 181:
             #     self.vel(0, -10)
             # else:
             self.vel(0, 10)
-            if ur_angle+self.angle_adj+0.1 > self.angle > ur_angle-self.angle_adj-0.1:
+            if current_angle+self.angle_adjustment+0.1 > self.angle > current_angle-self.angle_adjustment-0.1:
                 self.state = State.DRIVING
 
         elif self.state == State.DRIVING:
@@ -399,16 +399,16 @@ class Tb3(Node):
             vektor_OG = [x - origin_x, y - origin_y]
             dist_OG = numpy.linalg.norm(origin_xy-goal_xy)
 
-            self.angle_adj = numpy.arccos(vektor_OG[0] / dist_OG)
+            self.angle_adjustment = numpy.arccos(vektor_OG[0] / dist_OG)
 
             if direction == "UP":
-                self.angle = 90 + self.angle_adj
+                self.angle = 90 + self.angle_adjustment
             if direction == "DOWN":
-                self.angle = 270 - self.angle_adj
+                self.angle = 270 - self.angle_adjustment
             if direction == "LEFT":
-                self.angle = 180 + self.angle_adj
+                self.angle = 180 + self.angle_adjustment
             if direction == "RIGHT":
-                self.angle = 360 + self.angle_adj
+                self.angle = 360 + self.angle_adjustment
             self.rotate = False
 
         return None
