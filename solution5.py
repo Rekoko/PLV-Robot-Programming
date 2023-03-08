@@ -14,49 +14,48 @@ from enum import Enum, auto
 
 import networkx as nx
 
+
 class State(Enum):
     DRIVING = auto()
     ROTATING = auto()
     STOP = auto()
 
 
-
 # If we have seen a Crossway it will become a Crossway object, otherwise it will be None
 # dict or do we need connections to "up" "down" "left" "right"? - None since these are the edges
 # Do we need any object at all? no? yes? We dont know what direction the edge goes
 # We can do weighted edges and save the change of the coordinates in the edge to then add to the goal coordinate upon goin onto that edge
-# We never need another class 
-# Weights as a tupel for the goal  change? 
+# We never need another class
+# Weights as a tupel for the goal  change?
 
 class Tb3(Node):
     def __init__(self):
         super().__init__('tb3')
 
         self.cmd_vel_pub = self.create_publisher(
-                Twist,      # message type
-                'cmd_vel',  # topic name
-                1)          # history depth
+            Twist,      # message type
+            'cmd_vel',  # topic name
+            1)          # history depth
         self.scan_sub = self.create_subscription(
-                CameraInfo,
-                'camera/camera_info',
-                self.camera_info_callback,
-                qos_profile_sensor_data)
+            CameraInfo,
+            'camera/camera_info',
+            self.camera_info_callback,
+            qos_profile_sensor_data)
         self.scan_sub = self.create_subscription(
-                Image,
-                'camera/image_raw',
-                self.camera_image_callback,
-                qos_profile_sensor_data)
+            Image,
+            'camera/image_raw',
+            self.camera_image_callback,
+            qos_profile_sensor_data)
         self.scan_sub = self.create_subscription(
-                LaserScan,
-                'scan',
-                self.scan_callback,  # function to run upon message arrival
-                qos_profile_sensor_data)  # allows packet loss
+            LaserScan,
+            'scan',
+            self.scan_callback,  # function to run upon message arrival
+            qos_profile_sensor_data)  # allows packet loss
         self.scan_sub = self.create_subscription(
-                Odometry,
-                'odom',
-                self.odom_callback,  # function to run upon message arrival
-                qos_profile_sensor_data)  # allows packet loss
-        
+            Odometry,
+            'odom',
+            self.odom_callback,  # function to run upon message arrival
+            qos_profile_sensor_data)  # allows packet loss
 
         self.ang_vel_percent = 0
         self.lin_vel_percent = 0
@@ -64,12 +63,20 @@ class Tb3(Node):
         self.diff = 0
         self.goalCords = (0.5, 0.5)
         self.msg_odom = None
+
+        # Graph variables
         self.graph = nx.Graph()
-        self.path_history = [] # What direction is back?
-        self.visited_nodes = [] # Where have we been
-        self.node_number = 0 # Naming nodes different names
-        self.current_node = 0 # Current position
+        self.path_history = []  # What direction is back?
+        self.visited_nodes = []  # Where have we been
+        self.node_number = 0  # Naming nodes different names
+        self.current_node = 0  # Current position
         self.direction = "UP"
+
+        # Matrix varibales
+        self.matrix = [[{"UP": None, "RIGHT": None, "DOWN": None,
+                         "LEFT": None, "VISITED": False} for i in range(10)] for i in range(10)]
+        self.target_cords = (0, 0)
+        self.current_cords = (0, 0)
 
         self.counter = True
 
@@ -79,13 +86,13 @@ class Tb3(Node):
     # Checks if there is a path available along the x-/y-Axes
     def getPaths(self, msg, origin):
         results = []
-        if msg.ranges[0] > 1: # up path
+        if msg.ranges[0] > 1:  # up path
             results.append("UP")
-        if msg.ranges[-90] > 1: # right path
+        if msg.ranges[-90] > 1:  # right path
             results.append("RIGHT")
-        if msg.ranges[180] > 1: # down path
+        if msg.ranges[180] > 1:  # down path
             results.append("DOWN")
-        if msg.ranges[90] > 1: # left path
+        if msg.ranges[90] > 1:  # left path
             results.append("LEFT")
 
         if self.direction == "LEFT":
@@ -101,10 +108,10 @@ class Tb3(Node):
         if origin in results:
             results.remove(origin)
         return results
-    
-    
+
     def shiftOnce(self, dir_list):
-        single_shift_dic = {"UP": "RIGHT", "RIGHT": "DOWN", "DOWN": "LEFT", "LEFT": "UP"}
+        single_shift_dic = {"UP": "RIGHT",
+                            "RIGHT": "DOWN", "DOWN": "LEFT", "LEFT": "UP"}
         new_list = []
         for i in dir_list:
             new_list.append(single_shift_dic[i])
@@ -116,11 +123,11 @@ class Tb3(Node):
         if dir == "UP":
             self.goalCords = x, y + 1
         if dir == "RIGHT":
-            self.goalCords = x + 1, y 
-        if dir =="DOWN":
+            self.goalCords = x + 1, y
+        if dir == "DOWN":
             self.goalCords = x, y - 1
         if dir == "LEFT":
-            self.goalCords = x - 1  , y
+            self.goalCords = x - 1, y
 
     def reversePath(self, dir):
         if dir == "UP":
@@ -133,26 +140,28 @@ class Tb3(Node):
             return "RIGHT"
 
     # Problem right now:
-    # It cant realize when to go back since it doesnt really understand when 
+    # It cant realize when to go back since it doesnt really understand when
     # a direction is undiscovered or when it has already been visited # Still a problem? We can make a list of visited nodes? easy
     # Linked List or List
     # We could just add a variable for the path that we came from and another for possible open paths
     # Linked List seems better and easier
 
-
     # Decides where to go next while saving the path where it went and where it can go
-    # !!!! UNFINISHED KEPT IN CASE IT FINISHES !!!!! 
+    # !!!! UNFINISHED KEPT IN CASE IT FINISHES !!!!!
+
     def calculatePathGraph(self, msg):
         if self.msg_odom:
             if (self.goalCords[0] + 0.1) > self.msg_odom[0].x > (self.goalCords[0] - 0.1) and\
-            (self.goalCords[1] + 0.1) > self.msg_odom[0].y > (self.goalCords[1] - 0.1):
-                print("----------------------------------------\nNEW ITERATION\n----------------------------------------")
-                if self.current_node not in self.visited_nodes: # if the node we are at is a new node
-                    
+                    (self.goalCords[1] + 0.1) > self.msg_odom[0].y > (self.goalCords[1] - 0.1):
+                print(
+                    "----------------------------------------\nNEW ITERATION\n----------------------------------------")
+                if self.current_node not in self.visited_nodes:  # if the node we are at is a new node
+
                     # Add current node to the Graph
 
                     if nx.is_empty(self.graph):
-                        self.graph.add_node(self.node_number) # We kinda only want to do this in the beginning
+                        # We kinda only want to do this in the beginning
+                        self.graph.add_node(self.node_number)
                         self.node_number += 1
                         print("added first node")
                         origin = None
@@ -164,11 +173,12 @@ class Tb3(Node):
                         # print(self.current_node)
                         # print(self.visited_nodes[-1])
                         # print("________DEBUG--END______________")
-                        origin = self.reversePath(self.graph[self.path_history[-1]][self.current_node]["weight"])
+                        origin = self.reversePath(
+                            self.graph[self.path_history[-1]][self.current_node]["weight"])
                     # Add node to the list of seen nodes
-                    self.visited_nodes.append(self.current_node) 
+                    self.visited_nodes.append(self.current_node)
 
-                    # When to set the path history and the visited nodes: 
+                    # When to set the path history and the visited nodes:
                     # Visited Nodes: upon reaching a new node/ Only to be called when reaching a new node which is correct
                     # Path history: upon leaving a node
                     # self.path_history.append(self.current_node)
@@ -179,21 +189,21 @@ class Tb3(Node):
                     if msg == None:
                         print("msg is none")
                     if origin == None:
-                           print("origin is none")
+                        print("origin is none")
                     for direction in self.getPaths(msg, origin):
                         self.graph.add_node(self.node_number)
-                        self.graph.add_edge(self.node_number, self.current_node, weight = direction)
+                        self.graph.add_edge(
+                            self.node_number, self.current_node, weight=direction)
                         self.node_number += 1
 
-
                     # How do we find back? Make Path History
-                    # How do we know where to still go? Check every path -- 
+                    # How do we know where to still go? Check every path --
                     # We only have one direction in the edge since we assume that there are no loops in the maze
                     # Look for a new node at the current position
                     #   If Yes: Go to that node
                     #   If No: Go back to the node where we came from (Node History) and repeat step
-        
-                # For all connections we have to the current node, 
+
+                # For all connections we have to the current node,
                 # Probably have to filter this one a little bit more since the destination will not always be at the second pos
                 for _, dest, dir in list(self.graph.edges(self.current_node, data=True)):
                     if dest not in self.visited_nodes:
@@ -203,7 +213,7 @@ class Tb3(Node):
                         print(self.goalCords)
                         self.setGoal(dir)
                         x, y = self.goalCords
-                        self.setRotation((x,y,dir))
+                        self.setRotation((x, y, dir))
                         print(dir)
                         print(list(self.graph.nodes))
                         print(list(self.graph.edges))
@@ -212,20 +222,90 @@ class Tb3(Node):
 
                 # Go backwards and set current node + destination to that node
                 goal_node = self.path_history.pop()
-                direc = self.reversePath(self.graph[goal_node][self.current_node]["weight"])
+                direc = self.reversePath(
+                    self.graph[goal_node][self.current_node]["weight"])
                 self.setGoal(direc)
                 x, y = self.goalCords
                 self.current_node = goal_node
                 self.setRotation((x, y, direc))
                 if direc == "DOWN":
                     print("DIREC: DOWN")
-                print(f"going back where we came from with:\nx: %s\ny: %s\ndirec: %s"%(x, y, direc))
+                print(f"going back where we came from with:\nx: %s\ny: %s\ndirec: %s" % (
+                    x, y, direc))
 
         return None
-    
-    def calculatePathMatrix(self, msg):
-        return
 
+    def calculatePathMatrix(self, msg):
+        # If a message exists
+        if self.msg_odom:
+            # If we are in a not driving state (Logic for this could be moved)
+            if (self.goalCords[0] + 0.1) > self.msg_odom[0].x > (self.goalCords[0] - 0.1) and\
+                    (self.goalCords[1] + 0.1) > self.msg_odom[0].y > (self.goalCords[1] - 0.1):
+                print(
+                    "----------------------------------------\nNEW ITERATION\n----------------------------------------")
+                current_square = self.matrix[self.current_cords[0]][self.current_cords[1]]
+                if current_square["VISITED"] == False:  # if the node we are at is a new node, gather information
+
+                    # For every direction that the turtle sees as open;
+                    # we not that in the matrix
+                    # We have to keep track of the orientation to correct the falsely categorized information
+                    # When we are turned it will always be "off"
+
+                    try:
+                        origin = self.reversePath(self.graph[self.path_history[-1]][self.current_node]["weight"])
+                    except:
+                        origin = None
+                        print("No origin could be set")
+
+                    current_square["VISITED"] = True
+
+                    if msg == None:
+                        print("msg is none")
+                    if origin == None:
+                        print("origin is none")
+                    # add the directions to the Matrix
+                    for direction in self.getPaths(msg, origin):
+                        self.matrix[self.current_cords[0]
+                                    ][self.current_cords[1]][direction] = True
+
+                    # How do we find back? Make Path History
+                    # How do we know where to still go? Check every path --
+                    # We only have one direction in the edge since we assume that there are no loops in the maze
+                    # Look for a new node at the current position
+                    #   If Yes: Go to that node
+                    #   If No: Go back to the node where we came from (Node History) and repeat step
+
+                # For all connections we have to the current node,
+                # Probably have to filter this one a little bit more since the destination will not always be at the second pos
+                for _, dest, dir in list(self.graph.edges(self.current_node, data=True)):
+                    if dest not in self.visited_nodes:
+                        self.path_history.append(self.current_node)
+                        self.current_node = dest
+                        dir = dir["weight"]
+                        print(self.goalCords)
+                        self.setGoal(dir)
+                        x, y = self.goalCords
+                        self.setRotation((x, y, dir))
+                        print(dir)
+                        print(list(self.graph.nodes))
+                        print(list(self.graph.edges))
+                        print(self.goalCords)
+                        return
+
+                # Go backwards and set current node + destination to that node
+                goal_node = self.path_history.pop()
+                direc = self.reversePath(
+                    self.graph[goal_node][self.current_node]["weight"])
+                self.setGoal(direc)
+                x, y = self.goalCords
+                self.current_node = goal_node
+                self.setRotation((x, y, direc))
+                if direc == "DOWN":
+                    print("DIREC: DOWN")
+                print(f"going back where we came from with:\nx: %s\ny: %s\ndirec: %s" % (
+                    x, y, direc))
+
+        return None
 
     def vel(self, lin_vel_percent, ang_vel_percent=0):
         """ publishes linear and angular velocities in percent
@@ -244,12 +324,11 @@ class Tb3(Node):
 
     def camera_image_callback(self, msg):
         # print(msg.encoding)
-        return  
+        return
 
     def camera_info_callback(self, msg):
-    
+
         return None
-    
 
     def scan_callback(self, msg):
         """ is run whenever a LaserScan msg is received
@@ -259,16 +338,17 @@ class Tb3(Node):
         # print('⬆️ :', msg.ranges[0])
         # print('⬇️ :', msg.ranges[180])
         # print('⬅️ :', msg.ranges[90])
-        #print('➡️ :', msg.ranges[-90])
+        # print('➡️ :', msg.ranges[-90])
         # self.calculatePathGraph(msg)
         self.calculatePathMatrix(msg)
-        
 
     def odom_callback(self, msg):
         position = msg.pose.pose.position
         orientation = msg.pose.pose.orientation
-        euler_angles = euler.quat2euler([orientation.w, orientation.x, orientation.y, orientation.z])
-        angles = [euler_angles[0] * (180/math.pi), euler_angles[1] * (180/math.pi), euler_angles[2] * (180/math.pi)]
+        euler_angles = euler.quat2euler(
+            [orientation.w, orientation.x, orientation.y, orientation.z])
+        angles = [euler_angles[0] * (180/math.pi), euler_angles[1]
+                  * (180/math.pi), euler_angles[2] * (180/math.pi)]
 
         # print("Aktuelle Ausrichtung: ", angles)
         # print("Aktuelle Position: ", position)
@@ -287,8 +367,7 @@ class Tb3(Node):
 
         if self.state == State.ROTATING:
 
-
-            if  -1 < (ur_angle+self.angle_adj - self.angle) < 1:
+            if -1 < (ur_angle+self.angle_adj - self.angle) < 1:
                 self.state = State.DRIVING
 
             # if abs(self.angle - (ur_angle+self.angel_adj)) > 181:
@@ -297,22 +376,22 @@ class Tb3(Node):
             self.vel(0, 10)
             if ur_angle+self.angle_adj+0.1 > self.angle > ur_angle-self.angle_adj-0.1:
                 self.state = State.DRIVING
-                
+
         elif self.state == State.DRIVING:
-            self.vel(40,0)
+            self.vel(40, 0)
         elif self.state == State.STOP:
-            self.vel(0,0)
+            self.vel(0, 0)
 
         pass
 
-    
-    #Turning to direction the bot will drive too
-    #Setting velocity to 20 while on path to given Cords    
+    # Turning to direction the bot will drive too
+    # Setting velocity to 20 while on path to given Cords
+
     def setRotation(self, coords):
         self.state = State.ROTATING
-        x,y,direction = coords
+        x, y, direction = coords
         self.direction = direction
-        self.rotate = True    
+        self.rotate = True
         if self.rotate == True:
             position = self.msg_odom[0]
 
@@ -320,10 +399,8 @@ class Tb3(Node):
             goal_xy = numpy.array((x, y))
             origin_xy = numpy.array((origin_x, origin_y))
 
-
-            vektor_OG = [x- origin_x, y - origin_y]
+            vektor_OG = [x - origin_x, y - origin_y]
             dist_OG = numpy.linalg.norm(origin_xy-goal_xy)
-
 
             self.angle_adj = numpy.arccos(vektor_OG[0] / dist_OG)
 
@@ -333,18 +410,18 @@ class Tb3(Node):
                 self.angle = 270 - self.angle_adj
             if direction == "LEFT":
                 self.angle = 180 + self.angle_adj
-            if direction == "RIGHT":  
+            if direction == "RIGHT":
                 self.angle = 360 + self.angle_adj
             self.rotate = False
 
         return None
-    
+
     def speedRegulation(self):
         return None
-    
+
     def checkGoald(self):
         return None
-    
+
 
 def main(args=None):
     rclpy.init(args=args)
