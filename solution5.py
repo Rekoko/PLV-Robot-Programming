@@ -73,9 +73,7 @@ class Tb3(Node):
         self.direction = "UP"
 
         # Matrix varibales
-        self.matrix = [[{"UP": None, "RIGHT": None, "DOWN": None,
-                         "LEFT": None, "VISITED": False} for i in range(10)] for i in range(10)]
-        self.target_cords = (0, 0)
+        self.matrix = [[{"DIRECTIONS": [], "VISITED": False} for i in range(10)] for i in range(10)]
         self.current_cords = (0, 0)
 
         self.counter = True
@@ -234,13 +232,24 @@ class Tb3(Node):
                     x, y, direc))
 
         return None
+    
+    def targetIndices(self, x, y, dir):
+        if dir == "UP":
+            y=  y + 1
+        if dir == "RIGHT":
+            x = x + 1
+        if dir == "DOWN":
+            y = y - 1
+        if dir == "LEFT":
+            x = x - 1
+        return x, y
 
     def calculatePathMatrix(self, msg):
         # If a message exists
         if self.msg_odom:
             # If we are in a not driving state (Logic for this could be moved)
-            if (self.goalCords[0] + 0.1) > self.msg_odom[0].x > (self.goalCords[0] - 0.1) and\
-                    (self.goalCords[1] + 0.1) > self.msg_odom[0].y > (self.goalCords[1] - 0.1):
+            if (self.goalCords[0] + 0.6) > self.msg_odom[0].x > (self.goalCords[0] + 0.4) and\
+                    (self.goalCords[1] + 0.6) > self.msg_odom[0].y > (self.goalCords[1] + 0.4):
                 print(
                     "----------------------------------------\nNEW ITERATION\n----------------------------------------")
                 current_square = self.matrix[self.current_cords[0]][self.current_cords[1]]
@@ -263,10 +272,8 @@ class Tb3(Node):
                         print("msg is none")
                     if origin == None:
                         print("origin is none")
-                    # add the directions to the Matrix
-                    for direction in self.getPaths(msg, origin):
-                        self.matrix[self.current_cords[0]
-                                    ][self.current_cords[1]][direction] = True
+                    # add the directions to the Matrix-Square
+                    self.matrix[self.current_cords[0]][self.current_cords[1]]["DIRECTIONS"] = self.getPaths(msg, origin)
 
                     # How do we find back? Make Path History
                     # How do we know where to still go? Check every path --
@@ -276,34 +283,27 @@ class Tb3(Node):
                     #   If No: Go back to the node where we came from (Node History) and repeat step
 
                 # For all connections we have to the current node,
-                # Probably have to filter this one a little bit more since the destination will not always be at the second pos
-                for _, dest, dir in list(self.graph.edges(self.current_node, data=True)):
-                    if dest not in self.visited_nodes:
-                        self.path_history.append(self.current_node)
-                        self.current_node = dest
-                        dir = dir["weight"]
-                        print(self.goalCords)
-                        self.setGoal(dir)
-                        x, y = self.goalCords
-                        self.setRotation((x, y, dir))
-                        print(dir)
+                # Probably have to filter this one a little bit more since the destination will not always be at the second pos // It is 
+                for direction in self.matrix[self.current_cords[0]][self.current_cords[1]]["DIRECTIONS"]:
+                    dest_x, dest_y = self.targetIndices(self.current_cords[0],self.current_cords[1], direction)
+                    if not self.matrix[dest_x][dest_y]["VISITED"]:
+                        self.path_history.append(origin)
+                        self.current_cords = dest_x, dest_y
+                        self.setRotation((dest_x,dest_y, direction))
+                        print(direction)
                         print(list(self.graph.nodes))
                         print(list(self.graph.edges))
                         print(self.goalCords)
                         return
 
                 # Go backwards and set current node + destination to that node
-                goal_node = self.path_history.pop()
-                direc = self.reversePath(
-                    self.graph[goal_node][self.current_node]["weight"])
-                self.setGoal(direc)
-                x, y = self.goalCords
-                self.current_node = goal_node
-                self.setRotation((x, y, direc))
-                if direc == "DOWN":
-                    print("DIREC: DOWN")
+                direction = self.path_history.pop()
+                direction = self.reversePath(direction)
+                dest_x, dest_y = self.targetIndices(self.current_cords[0], self.current_cords[1], direction)
+                self.current_cords = dest_x, dest_y
+                self.setRotation((dest_x, dest_y, direction))
                 print(f"going back where we came from with:\nx: %s\ny: %s\ndirec: %s" % (
-                    x, y, direc))
+                    dest_x, dest_y, direction))
 
         return None
 
