@@ -127,7 +127,7 @@ class Tb3(Node):
         if dir == "LEFT":
             self.goalCords = x - 1, y
 
-    def reversePath(self, dir):
+    def reverseDirection(self, dir):
         if dir == "UP":
             return "DOWN"
         if dir == "DOWN":
@@ -171,7 +171,7 @@ class Tb3(Node):
                         # print(self.current_node)
                         # print(self.visited_nodes[-1])
                         # print("________DEBUG--END______________")
-                        origin = self.reversePath(
+                        origin = self.reverseDirection(
                             self.graph[self.path_history[-1]][self.current_node]["weight"])
                     # Add node to the list of seen nodes
                     self.visited_nodes.append(self.current_node)
@@ -220,7 +220,7 @@ class Tb3(Node):
 
                 # Go backwards and set current node + destination to that node
                 goal_node = self.path_history.pop()
-                direc = self.reversePath(
+                direc = self.reverseDirection(
                     self.graph[goal_node][self.current_node]["weight"])
                 self.setGoal(direc)
                 x, y = self.goalCords
@@ -243,13 +243,18 @@ class Tb3(Node):
         if dir == "LEFT":
             x = x - 1
         return x, y
+    
+    def debug_prints(self):
+        print(f"DIRECTION: %s"%self.direction)
+        print(f"GOAL: %s"%self.current_cords)
+        print(f"PATH TO THE BEGINNING: %s"%self.path_history)
 
     def calculatePathMatrix(self, msg):
         # If a message exists
         if self.msg_odom:
             # If we are in a not driving state (Logic for this could be moved)
-            if (self.goalCords[0] + 0.6) > self.msg_odom[0].x > (self.goalCords[0] + 0.4) and\
-                    (self.goalCords[1] + 0.6) > self.msg_odom[0].y > (self.goalCords[1] + 0.4):
+            if (self.current_cords[0] + 0.7) > self.msg_odom[0].x > (self.current_cords[0] + 0.3) and\
+                    (self.current_cords[1] + 0.7) > self.msg_odom[0].y > (self.current_cords[1] + 0.3):
                 print(
                     "----------------------------------------\nNEW ITERATION\n----------------------------------------")
                 current_square = self.matrix[self.current_cords[0]][self.current_cords[1]]
@@ -259,21 +264,12 @@ class Tb3(Node):
                     # we not that in the matrix
                     # We have to keep track of the orientation to correct the falsely categorized information
                     # When we are turned it will always be "off"
-
-                    try:
-                        origin = self.reversePath(self.graph[self.path_history[-1]][self.current_node]["weight"])
-                    except:
-                        origin = None
-                        print("No origin could be set")
+                    
 
                     current_square["VISITED"] = True
 
-                    if msg == None:
-                        print("msg is none")
-                    if origin == None:
-                        print("origin is none")
                     # add the directions to the Matrix-Square
-                    self.matrix[self.current_cords[0]][self.current_cords[1]]["DIRECTIONS"] = self.getPaths(msg, origin)
+                    self.matrix[self.current_cords[0]][self.current_cords[1]]["DIRECTIONS"] = self.getPaths(msg, self.reverseDirection(self.direction))
 
                     # How do we find back? Make Path History
                     # How do we know where to still go? Check every path --
@@ -287,23 +283,20 @@ class Tb3(Node):
                 for direction in self.matrix[self.current_cords[0]][self.current_cords[1]]["DIRECTIONS"]:
                     dest_x, dest_y = self.targetIndices(self.current_cords[0],self.current_cords[1], direction)
                     if not self.matrix[dest_x][dest_y]["VISITED"]:
-                        self.path_history.append(origin)
+                        self.path_history.append(self.reverseDirection(direction))
                         self.current_cords = dest_x, dest_y
                         self.setRotation((dest_x,dest_y, direction))
-                        print(direction)
-                        print(list(self.graph.nodes))
-                        print(list(self.graph.edges))
-                        print(self.goalCords)
+                        self.debug_prints()
                         return
+                # Dont add backwards way to path_history
 
                 # Go backwards and set current node + destination to that node
                 direction = self.path_history.pop()
-                direction = self.reversePath(direction)
                 dest_x, dest_y = self.targetIndices(self.current_cords[0], self.current_cords[1], direction)
                 self.current_cords = dest_x, dest_y
                 self.setRotation((dest_x, dest_y, direction))
-                print(f"going back where we came from with:\nx: %s\ny: %s\ndirec: %s" % (
-                    dest_x, dest_y, direction))
+                self.debug_prints()
+                print("going back where we came from")
 
         return None
 
@@ -343,6 +336,9 @@ class Tb3(Node):
         self.calculatePathMatrix(msg)
 
     def odom_callback(self, msg):
+        self.rotateLogic(msg)
+    
+    def rotateLogic(self, msg):
         position = msg.pose.pose.position
         orientation = msg.pose.pose.orientation
         euler_angles = euler.quat2euler(
@@ -383,6 +379,7 @@ class Tb3(Node):
             self.vel(0, 0)
 
         pass
+
 
     # Turning to direction the bot will drive too
     # Setting velocity to 20 while on path to given Cords
