@@ -76,10 +76,12 @@ class Tb3(Node):
         self.matrix = [[{"DIRECTIONS": [], "VISITED": False} for i in range(10)] for i in range(10)]
         self.current_cords = (0, 0)
 
-        self.counter = True
-
+        # Rotation variables
         self.angle = 0
         self.angle_adjustment = 0
+        self.rotdir = 0
+        
+        
 
     # Checks if there is a path available along the x-/y-Axes
     def getPaths(self, msg, origin):
@@ -253,8 +255,8 @@ class Tb3(Node):
         # If a message exists
         if self.msg_odom:
             # If we are in a not driving state (Logic for this could be moved)
-            if (self.current_cords[0] + 0.7) > self.msg_odom[0].x > (self.current_cords[0] + 0.3) and\
-                    (self.current_cords[1] + 0.7) > self.msg_odom[0].y > (self.current_cords[1] + 0.3):
+            if (self.current_cords[0] + 0.8) > self.msg_odom[0].x > (self.current_cords[0] + 0.2) and\
+                    (self.current_cords[1] + 0.8) > self.msg_odom[0].y > (self.current_cords[1] + 0.2):
                 print(
                     "----------------------------------------\nNEW ITERATION\n----------------------------------------")
                 current_square = self.matrix[self.current_cords[0]][self.current_cords[1]]
@@ -356,25 +358,46 @@ class Tb3(Node):
 
         # print(ur_angle)
         # print(self.angle)
-        # if self.counter == True:
-        #     self.setRotation((1.5, 0.5, "RIGHT"))
-        #     self.counter = False
-        #     self.state = State.ROTATING
 
         if self.state == State.ROTATING:
 
-            if -2 < (current_angle+self.angle_adjustment - self.angle) < 1:
+            if -0.5 < (current_angle+self.angle_adjustment - self.angle) < 0.5:
                 self.state = State.DRIVING
 
-            # if abs(self.angle - (ur_angle+self.angel_adj)) > 181:
-            #     self.vel(0, -10)
-            # else:
-            self.vel(0, 10)
-            if current_angle+self.angle_adjustment+0.1 > self.angle > current_angle-self.angle_adjustment-0.1:
+            self.rotdir = self.angle - current_angle
+
+            if self.rotdir < -265:
+                self.rotdir = self.rotdir +360
+            elif self.rotdir > 265:
+                self.rotdir = self.rotdir -360
+
+
+            
+            print("Aim: ", self.angle, "Current: ", current_angle, "diff: ", self.rotdir)
+            if self.rotdir < 0:
+                if abs(self.rotdir) < 30:
+                    self.rotdir = self.rotdir/90 - 7
+                elif abs(self.rotdir) < 15:
+                    self.rotdir = self.rotdir/90 - 3
+                else:
+                    self.rotdir = self.rotdir/90 - 30
+            else:
+                if abs(self.rotdir) < 30:
+                    self.rotdir = self.rotdir/90 + 7
+                elif abs(self.rotdir) < 15:
+                    self.rotdir = self.rotdir/90 + 3
+                else:
+                    self.rotdir = self.rotdir/90 + 30
+ 
+
+            self.vel(0,  self.rotdir)
+
+            
+            if current_angle+self.angle_adjustment +0.1 > self.angle > current_angle-self.angle_adjustment-0.1:
                 self.state = State.DRIVING
 
         elif self.state == State.DRIVING:
-            self.vel(40, 0)
+            self.vel(100, 0)
         elif self.state == State.STOP:
             self.vel(0, 0)
 
@@ -401,14 +424,34 @@ class Tb3(Node):
 
             self.angle_adjustment = numpy.arccos(vektor_OG[0] / dist_OG)
 
+
+            x_decimal = origin_x % 1
+            y_decimal = origin_y % 1
+
+
             if direction == "UP":
-                self.angle = 90 + self.angle_adjustment
-            if direction == "DOWN":
-                self.angle = 270 - self.angle_adjustment
-            if direction == "LEFT":
-                self.angle = 180 + self.angle_adjustment
-            if direction == "RIGHT":
-                self.angle = 360 + self.angle_adjustment
+                if x_decimal < 0.5:
+                    self.angle = 90 - self.angle_adjustment
+                else:
+                    self.angle = 90 + self.angle_adjustment
+            elif direction == "DOWN":
+                if x_decimal < 0.5:
+                    self.angle = 270 - self.angle_adjustment
+                else:
+                    self.angle = 270 + self.angle_adjustment
+            elif direction == "LEFT":
+                if y_decimal < 0.5:
+                    self.angle = 180 - self.angle_adjustment
+                else:
+                    self.angle = 180 + self.angle_adjustment
+            elif direction == "RIGHT":
+                if y_decimal < 0.5:
+                    self.angle = 360 + self.angle_adjustment
+                else:
+                    self.angle = 360 - self.angle_adjustment
+                
+            if self.angle > 360:
+                self.angle = self.angle -360    
             self.rotate = False
 
         return None
