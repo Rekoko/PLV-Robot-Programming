@@ -1,4 +1,4 @@
-PLV2: Robot Programming - THD Bachelor AI 5th Semester Lecture
+PLV2: Robot Programming
 ==============================================================
 
 Quick introduction to the problem and how to use the project.
@@ -13,7 +13,7 @@ The solution to these tasks was tested on a gazebo simulation while real life us
 Getting started:
 ---
 
-
+  git clone https://mygit.th-deg.de/gaydos/tb3-maze-challenges
 
 
 Daniel Biberger | 00807497
