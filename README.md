@@ -22,6 +22,6 @@ Follow this [git repository](https://mygit.th-deg.de/gaydos/tb3-maze-challenges)
 ```
 
 ### Challenge Files
-The python files called challenge 1-5 are the scripts required for moving the Robot. After opening the mazes in gazebo, these scripts can be ran to control the robot within the simulation. 
+The python files called solution 1-5 are the scripts required for moving the Robot. After opening the mazes in gazebo, these scripts can be ran to control the robot within the simulation. 
 
 The task for these scripts are being described in the git repository with the mazes.
